@@ -1,18 +1,29 @@
-﻿using HtmlAgilityPack;
+using CredsVerification.Models;
+using HtmlAgilityPack;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Playwright;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 
 namespace CredsVerification.Controllers;
 
 [ApiController]
 [Route("/")]
-
+[Produces("application/json")]
 public class HomeController : Controller
 {
     private readonly PlaywrightHolder _ph;
+    private static readonly string[] SupportedStates =
+    [
+        "ak", "al", "ar", "az", "ca", "co", "ct", "dc", "de", "fl", "ga", "hi",
+        "ia", "id", "il", "in", "ks", "ky", "la", "ma", "md", "me", "mi",
+        "mn", "mo", "ms", "mt", "nc", "nd", "ne", "nh", "nj", "nm", "nv",
+        "ny", "oh", "ok", "or", "pa", "pr", "ri", "sc", "sd", "tn", "tx",
+        "ut", "va", "vt", "wa", "wi", "wv", "wy"
+    ];
+
     public HomeController(PlaywrightHolder ph) => _ph = ph;
 
     public JsonResult Index()
@@ -22,10 +33,12 @@ public class HomeController : Controller
     [HttpGet("/login")]
     public JsonResult Login()
     {
-        var StateList = new List<string>
+        return new JsonResult(new
         {
-        };
-        return new JsonResult(new { success = false, message = "Following State's login test is supported.", states = StateList });
+            success = true,
+            message = "Login verification is available for the following state codes.",
+            states = SupportedStates
+        });
     }
 
     [HttpPost("/login")]
@@ -33,6 +46,18 @@ public class HomeController : Controller
     {
         try
         {
+            if (!ModelState.IsValid)
+            {
+                return new JsonResult(new
+                {
+                    success = false,
+                    message = "Request body is missing required fields (username, password, or state).",
+                    errors = ModelState
+                        .Where(kvp => kvp.Value?.Errors.Count > 0)
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage))
+                });
+            }
+
             if (string.IsNullOrEmpty(model.state))
                 return new JsonResult(new { success = false, message = "State parameter is required" });
 
@@ -426,7 +451,7 @@ public class HomeController : Controller
                 {
                     if (responseContent.Contains("false"))
                     {
-                        return new JsonResult(new { success = false, message = "Login Successful." });
+                        return new JsonResult(new { success = true, message = "Login successful." });
                     }
                 }
 
@@ -2435,11 +2460,3 @@ public class HomeController : Controller
 }
 
 
-public class LoginModel
-{
-    public string username { get; set; }
-    public string accountNumber { get; set; } = string.Empty;
-    public string pin { get; set; } = string.Empty;
-    public string password { get; set; }
-    public string state { get; set; }
-}
